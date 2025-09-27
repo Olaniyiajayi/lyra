@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Stars } from "lucide-react";
+import { LyraLogo } from "@/components/ui/lyra-logo";
 
 export function Header() {
   const location = useLocation();
@@ -20,9 +20,9 @@ export function Header() {
       <div className="container mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2 group">
+          <Link to="/" className="flex items-center space-x-3 group">
             <div className="relative">
-              <Stars className="h-8 w-8 text-primary group-hover:scale-110 transition-transform duration-200" />
+              <LyraLogo className="h-8 w-8 group-hover:scale-110 transition-transform duration-200" />
               <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </div>
             <span className="text-2xl font-bold text-foreground">Lyra</span>

@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { Stars, Twitter, Linkedin } from "lucide-react";
+import { Twitter, Linkedin } from "lucide-react";
+import { LyraLogo } from "@/components/ui/lyra-logo";
 
 export function Footer() {
   const currentYear = new Date().getFullYear();
@@ -30,8 +31,8 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
           {/* Logo and Description */}
           <div className="md:col-span-2">
-            <Link to="/" className="flex items-center space-x-2 mb-4">
-              <Stars className="h-8 w-8 text-primary" />
+            <Link to="/" className="flex items-center space-x-3 mb-4">
+              <LyraLogo className="h-8 w-8" />
               <span className="text-2xl font-bold text-foreground">Lyra</span>
             </Link>
             <p className="text-muted-foreground text-sm leading-relaxed max-w-md">
