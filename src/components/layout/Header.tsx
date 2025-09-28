@@ -50,9 +50,16 @@ export function Header() {
                 Contact Sales
               </Button>
             </Link>
-            <Button size="sm" className="bg-primary hover:bg-primary/90">
-              Get Started
-            </Button>
+            <Link to="/login">
+              <Button variant="ghost" size="sm" className="hidden sm:inline-flex">
+                Login
+              </Button>
+            </Link>
+            <Link to="/login">
+              <Button size="sm" className="bg-primary hover:bg-primary/90">
+                Get Started
+              </Button>
+            </Link>
           </div>
         </div>
       </div>

@@ -85,10 +85,12 @@ export default function Home() {
                 </p>
                 
                 <div className="flex flex-col sm:flex-row gap-4">
-                  <Button size="lg" className="text-lg px-8 py-6 shadow-glow">
-                    Get Started
-                    <ArrowRight className="ml-2 h-5 w-5" />
-                  </Button>
+                  <Link to="/login">
+                    <Button size="lg" className="text-lg px-8 py-6 shadow-glow">
+                      Get Started
+                      <ArrowRight className="ml-2 h-5 w-5" />
+                    </Button>
+                  </Link>
                   <Button variant="outline" size="lg" className="text-lg px-8 py-6">
                     Watch Demo
                   </Button>
@@ -212,10 +214,12 @@ export default function Home() {
             <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
               Sign up for a free trial and experience the power of Lyra for yourself.
             </p>
-            <Button size="lg" className="text-lg px-8 py-6 shadow-glow">
-              Get Started
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
+            <Link to="/login">
+              <Button size="lg" className="text-lg px-8 py-6 shadow-glow">
+                Get Started
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </Link>
           </Card>
         </div>
       </section>
