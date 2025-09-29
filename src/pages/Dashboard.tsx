@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LyraLogo } from "@/components/ui/lyra-logo";
 import { Bell, Search, FileText, Sparkles, Upload, MessageSquare, FolderOpen, Network, Settings as SettingsIcon, Clock, File } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { signOut } from 'aws-amplify/auth';
+import { signOut, getCurrentUser } from 'aws-amplify/auth';
 import { useToast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,6 +19,18 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Check if user is authenticated
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        await getCurrentUser();
+      } catch {
+        navigate("/login");
+      }
+    };
+    checkAuth();
+  }, [navigate]);
+
   const handleSignOut = async () => {
     try {
       await signOut();
@@ -26,11 +38,12 @@ export default function Dashboard() {
         title: "Signed out",
         description: "You have been successfully signed out",
       });
-      navigate("/");
+      navigate("/login");
     } catch (error: any) {
+      console.error("Sign out error:", error);
       toast({
         title: "Error",
-        description: "Failed to sign out",
+        description: "Failed to sign out. Please try again.",
         variant: "destructive",
       });
     }
@@ -80,14 +93,23 @@ export default function Dashboard() {
           </Button>
         </nav>
 
-        <Button
-          variant="ghost"
-          className="w-full justify-start mt-auto"
-          onClick={() => setCurrentView("settings")}
-        >
-          <SettingsIcon className="h-4 w-4 mr-3" />
-          Settings
-        </Button>
+        <div className="mt-auto space-y-2">
+          <Button
+            variant="ghost"
+            className="w-full justify-start"
+            onClick={() => setCurrentView("settings")}
+          >
+            <SettingsIcon className="h-4 w-4 mr-3" />
+            Settings
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={handleSignOut}
+          >
+            Sign Out
+          </Button>
+        </div>
       </aside>
 
       {/* Main Content */}

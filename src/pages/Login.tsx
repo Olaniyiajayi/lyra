@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { LyraLogo } from "@/components/ui/lyra-logo";
 import { Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Amplify } from 'aws-amplify';
-import { signIn, signUp, confirmSignUp, resendSignUpCode } from 'aws-amplify/auth';
+import { signIn, signUp, signOut, confirmSignUp, resendSignUpCode, getCurrentUser } from 'aws-amplify/auth';
 
 // Configure Amplify
 Amplify.configure({
@@ -34,11 +34,31 @@ export default function Login() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Check if user is already logged in and redirect to dashboard
+  useEffect(() => {
+    const checkUser = async () => {
+      try {
+        await getCurrentUser();
+        navigate("/dashboard");
+      } catch {
+        // User is not logged in, stay on login page
+      }
+    };
+    checkUser();
+  }, [navigate]);
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
+      // First, try to sign out any existing session
+      try {
+        await signOut();
+      } catch (signOutError) {
+        // Ignore sign out errors if no user is signed in
+      }
+
       const result = await signIn({
         username: email,
         password: password,
@@ -52,9 +72,16 @@ export default function Login() {
         navigate("/dashboard");
       }
     } catch (error: any) {
+      console.error("Sign in error:", error);
+      let errorMessage = "Failed to sign in";
+      
+      if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Error",
-        description: error.message || "Failed to sign in",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
