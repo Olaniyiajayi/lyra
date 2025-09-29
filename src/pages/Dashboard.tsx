@@ -331,6 +331,8 @@ function UploadDocumentDialog() {
         throw new Error("No authentication token found");
       }
 
+      console.log('Using ID Token for authentication');
+
       setUploadProgress(20);
 
       // Get file extension and content type
@@ -354,25 +356,52 @@ function UploadDocumentDialog() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': idToken,
+          'Authorization': `Bearer ${idToken}`,
         },
         body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`);
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        throw new Error(`API request failed: ${response.status} - ${errorText}`);
       }
 
       setUploadProgress(50);
 
       const result = await response.json();
-      const uploadData = JSON.parse(result.body).upload_data;
+      console.log('API Response:', result);
+      
+      // Handle the response structure - check if it's already parsed or needs parsing
+      let uploadData;
+      if (typeof result === 'string') {
+        uploadData = JSON.parse(result).upload_data;
+      } else if (result.body) {
+        uploadData = JSON.parse(result.body).upload_data;
+      } else {
+        uploadData = result.upload_data;
+      }
+      
+      console.log('Upload Data:', uploadData);
+      
+      if (!uploadData || !uploadData.presigned_url) {
+        throw new Error('Invalid response: missing presigned URL data');
+      }
+      
       const { presigned_url } = uploadData;
+      console.log('Presigned URL:', presigned_url);
 
       setUploadProgress(60);
 
       // Upload file using presigned URL
       const formData = new FormData();
+      
+      // Validate presigned URL fields
+      if (!presigned_url.fields) {
+        throw new Error('Invalid presigned URL: missing fields');
+      }
+      
+      console.log('Presigned URL fields:', presigned_url.fields);
       
       // Add all the fields from the presigned URL
       Object.entries(presigned_url.fields).forEach(([key, value]) => {
@@ -390,7 +419,9 @@ function UploadDocumentDialog() {
       });
 
       if (!uploadResponse.ok) {
-        throw new Error(`File upload failed: ${uploadResponse.status}`);
+        const errorText = await uploadResponse.text();
+        console.error('S3 Upload Error Response:', errorText);
+        throw new Error(`File upload failed: ${uploadResponse.status} - ${errorText}`);
       }
 
       setUploadProgress(100);
