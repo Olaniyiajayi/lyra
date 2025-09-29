@@ -294,24 +294,135 @@ function UploadDocumentDialog() {
   const [department, setDepartment] = useState("");
   const [tags, setTags] = useState("");
   const [visibility, setVisibility] = useState("team-only");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [open, setOpen] = useState(false);
+  const { toast } = useToast();
 
-  const handleUpload = () => {
-    setIsUploading(true);
-    // Simulate upload progress
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsUploading(false);
-          return 100;
-        }
-        return prev + 10;
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      if (!title) {
+        setTitle(file.name.replace(/\.[^/.]+$/, ""));
+      }
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile || !title.trim()) {
+      toast({
+        title: "Error",
+        description: "Please select a file and enter a title",
+        variant: "destructive",
       });
-    }, 200);
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress(10);
+
+    try {
+      // Get the idToken from AWS Amplify
+      const { fetchAuthSession } = await import('aws-amplify/auth');
+      const session = await fetchAuthSession();
+      const idToken = session.tokens?.idToken?.toString();
+
+      if (!idToken) {
+        throw new Error("No authentication token found");
+      }
+
+      setUploadProgress(20);
+
+      // Get file extension and content type
+      const fileExtension = selectedFile.name.split('.').pop() || '';
+      const contentType = selectedFile.type || 'application/octet-stream';
+
+      // Prepare the payload
+      const payload = {
+        title: title.trim(),
+        department: department || "engineering",
+        tags: tags ? tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
+        visibility: visibility,
+        file_extension: fileExtension,
+        content_type: contentType
+      };
+
+      setUploadProgress(30);
+
+      // Call the API to get presigned URL
+      const response = await fetch('https://ddbvzu5y2m.execute-api.us-east-1.amazonaws.com/dev/upload/document', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': idToken,
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status}`);
+      }
+
+      setUploadProgress(50);
+
+      const result = await response.json();
+      const uploadData = JSON.parse(result.body).upload_data;
+      const { presigned_url } = uploadData;
+
+      setUploadProgress(60);
+
+      // Upload file using presigned URL
+      const formData = new FormData();
+      
+      // Add all the fields from the presigned URL
+      Object.entries(presigned_url.fields).forEach(([key, value]) => {
+        formData.append(key, value as string);
+      });
+      
+      // Add the file last
+      formData.append('file', selectedFile);
+
+      setUploadProgress(70);
+
+      const uploadResponse = await fetch(presigned_url.url, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error(`File upload failed: ${uploadResponse.status}`);
+      }
+
+      setUploadProgress(100);
+
+      toast({
+        title: "Success",
+        description: "Document uploaded successfully",
+      });
+
+      // Reset form
+      setTitle("");
+      setDepartment("");
+      setTags("");
+      setVisibility("team-only");
+      setSelectedFile(null);
+      setUploadProgress(0);
+      setOpen(false);
+
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      toast({
+        title: "Upload failed",
+        description: error.message || "Failed to upload document",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Card className="hover:shadow-md transition-shadow cursor-pointer">
           <CardContent className="p-6">
@@ -331,10 +442,25 @@ function UploadDocumentDialog() {
         <div className="space-y-6">
           {/* Upload Area */}
           <div className="border-2 border-dashed border-border rounded-lg p-12 text-center hover:border-primary/50 transition-colors">
+            <input
+              type="file"
+              id="file-upload"
+              className="hidden"
+              onChange={handleFileSelect}
+              disabled={isUploading}
+            />
             <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">Drag and drop files here</h3>
+            <h3 className="text-lg font-medium mb-2">
+              {selectedFile ? selectedFile.name : "Drag and drop files here"}
+            </h3>
             <p className="text-sm text-muted-foreground mb-4">Or click to browse</p>
-            <Button variant="outline">Browse Files</Button>
+            <Button 
+              variant="outline" 
+              onClick={() => document.getElementById('file-upload')?.click()}
+              disabled={isUploading}
+            >
+              Browse Files
+            </Button>
           </div>
 
           {/* Form Fields */}
@@ -411,7 +537,7 @@ function UploadDocumentDialog() {
           <div className="flex justify-end">
             <Button 
               onClick={handleUpload} 
-              disabled={isUploading || !title.trim()}
+              disabled={isUploading || !title.trim() || !selectedFile}
               className="px-8"
             >
               {isUploading ? "Uploading..." : "Upload"}
