@@ -322,16 +322,16 @@ function UploadDocumentDialog() {
     setUploadProgress(10);
 
     try {
-      // Get the idToken from AWS Amplify
+      // Get the accessToken from AWS Amplify
       const { fetchAuthSession } = await import('aws-amplify/auth');
       const session = await fetchAuthSession();
-      const idToken = session.tokens?.idToken?.toString();
+      const accessToken = session.tokens?.accessToken?.toString();
 
-      if (!idToken) {
+      if (!accessToken) {
         throw new Error("No authentication token found");
       }
 
-      console.log('Using ID Token for authentication');
+      console.log('Using Access Token for authentication');
 
       setUploadProgress(20);
 
@@ -356,7 +356,7 @@ function UploadDocumentDialog() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`,
+          'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify(payload)
       });
