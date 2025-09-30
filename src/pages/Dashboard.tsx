@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LyraLogo } from "@/components/ui/lyra-logo";
-import { Bell, Search, FileText, Sparkles, Upload, MessageSquare, FolderOpen, Network, Settings as SettingsIcon, Clock, File } from "lucide-react";
+import { Bell, Search, FileText, Sparkles, Upload, MessageSquare, FolderOpen, Network, Settings as SettingsIcon, Clock, File as FileIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { signOut, getCurrentUser } from 'aws-amplify/auth';
 import { useToast } from "@/components/ui/use-toast";
@@ -177,7 +177,7 @@ function DashboardHome() {
         <Card className="hover:shadow-md transition-shadow cursor-pointer">
           <CardContent className="p-6">
             <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center mb-4">
-              <File className="h-6 w-6 text-foreground" />
+              <FileIcon className="h-6 w-6 text-foreground" />
             </div>
             <h3 className="font-semibold text-lg mb-2">Summarize Content</h3>
             <p className="text-sm text-muted-foreground">Condense long documents or conversations.</p>
@@ -403,32 +403,19 @@ function UploadDocumentDialog() {
       
       console.log('Presigned URL fields:', presigned_url.fields);
       
-      // Add fields in the exact order required by S3 presigned URL
-      // The order is critical for S3 to accept the request
-      const requiredFields = [
-        'key',
-        'x-amz-algorithm', 
-        'x-amz-credential',
-        'x-amz-date',
-        'x-amz-security-token',
-        'policy',
-        'x-amz-signature'
-      ];
-      
-      // Add required fields first
-      requiredFields.forEach(fieldName => {
-        if (presigned_url.fields[fieldName]) {
-          formData.append(fieldName, presigned_url.fields[fieldName]);
-        }
+      // Append all returned fields exactly as provided
+      Object.entries(presigned_url.fields).forEach(([key, value]) => {
+        formData.append(key, value as string);
       });
       
-      // Add Content-Type field (this should be added after the required fields)
-      if (presigned_url.fields['Content-Type']) {
-        formData.append('Content-Type', presigned_url.fields['Content-Type']);
-      }
+      // Ensure the file part's MIME type matches the policy Content-Type if provided
+      const targetContentType = presigned_url.fields['Content-Type'] as string | undefined;
+      const fileForUpload = targetContentType && selectedFile.type !== targetContentType
+        ? new File([selectedFile], selectedFile.name, { type: targetContentType })
+        : selectedFile;
       
       // Add the file last - this is critical for S3!
-      formData.append('file', selectedFile);
+      formData.append('file', fileForUpload);
 
       setUploadProgress(70);
 
