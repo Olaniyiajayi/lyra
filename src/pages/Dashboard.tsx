@@ -442,7 +442,6 @@ function UploadDocumentDialog() {
         method: 'POST',
         body: formData,
         // Don't set Content-Type - let browser set it with correct boundary for multipart/form-data
-        // Don't set Content-Type - let browser set it with correct boundary for multipart/form-data
       });
 
       if (!uploadResponse.ok) {
