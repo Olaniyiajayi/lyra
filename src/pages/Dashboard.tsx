@@ -403,19 +403,45 @@ function UploadDocumentDialog() {
       
       console.log('Presigned URL fields:', presigned_url.fields);
       
-      // Add all the fields from the presigned URL
-      Object.entries(presigned_url.fields).forEach(([key, value]) => {
-        formData.append(key, value as string);
+      // Add fields in the exact order required by S3 presigned URL
+      // The order is critical for S3 to accept the request
+      const requiredFields = [
+        'key',
+        'x-amz-algorithm', 
+        'x-amz-credential',
+        'x-amz-date',
+        'x-amz-security-token',
+        'policy',
+        'x-amz-signature'
+      ];
+      
+      // Add required fields first
+      requiredFields.forEach(fieldName => {
+        if (presigned_url.fields[fieldName]) {
+          formData.append(fieldName, presigned_url.fields[fieldName]);
+        }
       });
       
-      // Add the file last
+      // Add Content-Type field (this should be added after the required fields)
+      if (presigned_url.fields['Content-Type']) {
+        formData.append('Content-Type', presigned_url.fields['Content-Type']);
+      }
+      
+      // Add the file last - this is critical for S3!
       formData.append('file', selectedFile);
 
       setUploadProgress(70);
 
+      // Debug: Log the FormData contents
+      console.log('FormData contents:');
+      for (const [key, value] of formData.entries()) {
+        console.log(`${key}:`, value);
+      }
+
       const uploadResponse = await fetch(presigned_url.url, {
         method: 'POST',
         body: formData,
+        // Don't set Content-Type - let browser set it with correct boundary for multipart/form-data
       });
 
       if (!uploadResponse.ok) {
