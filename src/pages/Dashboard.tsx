@@ -401,45 +401,66 @@ function UploadDocumentDialog() {
         throw new Error('Invalid presigned URL: missing fields');
       }
       
+      // Validate required fields for S3 POST upload
+      const requiredFields = ['key', 'x-amz-algorithm', 'x-amz-credential', 'x-amz-date', 'policy', 'x-amz-signature'];
+      const missingFields = requiredFields.filter(field => !presigned_url.fields[field]);
+      
+      if (missingFields.length > 0) {
+        throw new Error(`Invalid presigned URL: missing required fields: ${missingFields.join(', ')}`);
+      }
+      
       console.log('Presigned URL fields:', presigned_url.fields);
       
-      // Build FormData in a strict order S3 commonly expects
-      const ordered = [
+      // Build FormData in the exact order S3 expects for POST uploads
+      // S3 requires fields in this specific order for POST uploads
+      const fieldOrder = [
         'key',
-        'Content-Type',
+        'Content-Type', 
         'x-amz-algorithm',
         'x-amz-credential',
         'x-amz-date',
         'x-amz-security-token',
         'policy',
-        'x-amz-signature',
-      ] as const;
+        'x-amz-signature'
+      ];
 
-      ordered.forEach((name) => {
-        const v = presigned_url.fields[name as keyof typeof presigned_url.fields];
-        if (v) formData.append(name, v);
+      // Add fields in the correct order
+      fieldOrder.forEach(fieldName => {
+        const value = presigned_url.fields[fieldName];
+        if (value) {
+          formData.append(fieldName, value);
+        }
       });
 
-      // Append any remaining fields not in the order array (rare but safe)
-      Object.entries(presigned_url.fields).forEach(([k, v]) => {
-        if (!ordered.includes(k as any)) formData.append(k, v as string);
+      // Add any additional fields that might exist
+      Object.entries(presigned_url.fields).forEach(([key, value]) => {
+        if (!fieldOrder.includes(key)) {
+          formData.append(key, value as string);
+        }
       });
 
-      // Ensure the file part's MIME type matches the policy Content-Type if provided
+      // Create a new File object with the correct MIME type if needed
       const targetContentType = presigned_url.fields['Content-Type'] as string | undefined;
-      const fileBlob = targetContentType && selectedFile.type !== targetContentType
-        ? new Blob([selectedFile], { type: targetContentType })
-        : selectedFile;
+      let fileToUpload = selectedFile;
+      
+      if (targetContentType && selectedFile.type !== targetContentType) {
+        // Create a new File with the correct MIME type
+        fileToUpload = new File([selectedFile], selectedFile.name, { 
+          type: targetContentType,
+          lastModified: selectedFile.lastModified 
+        });
+      }
 
       console.log('Upload file diagnostics:', {
         originalType: selectedFile.type,
         targetContentType: targetContentType || null,
-        finalType: (fileBlob as File | Blob).type,
-        size: (fileBlob as File | Blob).size,
+        finalType: fileToUpload.type,
+        size: fileToUpload.size,
+        fileName: fileToUpload.name
       });
 
       // Add the file last - this is critical for S3!
-      formData.append('file', fileBlob as Blob, selectedFile.name);
+      formData.append('file', fileToUpload);
 
       setUploadProgress(70);
 
@@ -451,28 +472,43 @@ function UploadDocumentDialog() {
 
       let uploadResponse: Response | null = null;
       try {
+        console.log('Attempting S3 upload to:', presigned_url.url);
         uploadResponse = await fetch(presigned_url.url, {
           method: 'POST',
           body: formData,
           // Don't set Content-Type - let browser set it with correct boundary for multipart/form-data
         });
 
-        // If CORS blocks reading the response but the request was sent, this may throw instead of returning a Response
-      } catch (err) {
-        console.warn('Direct S3 upload failed, retrying with no-cors mode...', err);
-        // Fallback: attempt no-cors upload to bypass strict CORS; we can't read the response, so assume success if it resolves
-        await fetch(presigned_url.url, {
-          method: 'POST',
-          body: formData,
-          mode: 'no-cors',
-        });
-        uploadResponse = null;
-      }
+        console.log('S3 upload response status:', uploadResponse.status);
+        console.log('S3 upload response headers:', Object.fromEntries(uploadResponse.headers.entries()));
 
-      if (uploadResponse && !uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        console.error('S3 Upload Error Response:', errorText);
-        throw new Error(`File upload failed: ${uploadResponse.status} - ${errorText}`);
+        if (!uploadResponse.ok) {
+          const errorText = await uploadResponse.text();
+          console.error('S3 Upload Error Response:', errorText);
+          throw new Error(`File upload failed: ${uploadResponse.status} - ${errorText}`);
+        }
+
+      } catch (err) {
+        console.error('S3 upload error:', err);
+        
+        // If it's a CORS error, try with no-cors mode as fallback
+        if (err instanceof TypeError && err.message.includes('CORS')) {
+          console.warn('CORS error detected, retrying with no-cors mode...');
+          try {
+            await fetch(presigned_url.url, {
+              method: 'POST',
+              body: formData,
+              mode: 'no-cors',
+            });
+            console.log('No-cors upload completed (response not readable)');
+            uploadResponse = null; // We can't read the response in no-cors mode
+          } catch (noCorsErr) {
+            console.error('No-cors upload also failed:', noCorsErr);
+            throw new Error(`File upload failed due to CORS issues: ${err.message}`);
+          }
+        } else {
+          throw err;
+        }
       }
 
       setUploadProgress(100);
