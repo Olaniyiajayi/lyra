@@ -403,19 +403,43 @@ function UploadDocumentDialog() {
       
       console.log('Presigned URL fields:', presigned_url.fields);
       
-      // Append all returned fields exactly as provided
-      Object.entries(presigned_url.fields).forEach(([key, value]) => {
-        formData.append(key, value as string);
+      // Build FormData in a strict order S3 commonly expects
+      const ordered = [
+        'key',
+        'Content-Type',
+        'x-amz-algorithm',
+        'x-amz-credential',
+        'x-amz-date',
+        'x-amz-security-token',
+        'policy',
+        'x-amz-signature',
+      ] as const;
+
+      ordered.forEach((name) => {
+        const v = presigned_url.fields[name as keyof typeof presigned_url.fields];
+        if (v) formData.append(name, v);
       });
-      
+
+      // Append any remaining fields not in the order array (rare but safe)
+      Object.entries(presigned_url.fields).forEach(([k, v]) => {
+        if (!ordered.includes(k as any)) formData.append(k, v as string);
+      });
+
       // Ensure the file part's MIME type matches the policy Content-Type if provided
       const targetContentType = presigned_url.fields['Content-Type'] as string | undefined;
-      const fileForUpload = targetContentType && selectedFile.type !== targetContentType
-        ? new File([selectedFile], selectedFile.name, { type: targetContentType })
+      const fileBlob = targetContentType && selectedFile.type !== targetContentType
+        ? new Blob([selectedFile], { type: targetContentType })
         : selectedFile;
-      
+
+      console.log('Upload file diagnostics:', {
+        originalType: selectedFile.type,
+        targetContentType: targetContentType || null,
+        finalType: (fileBlob as File | Blob).type,
+        size: (fileBlob as File | Blob).size,
+      });
+
       // Add the file last - this is critical for S3!
-      formData.append('file', fileForUpload);
+      formData.append('file', fileBlob as Blob, selectedFile.name);
 
       setUploadProgress(70);
 
