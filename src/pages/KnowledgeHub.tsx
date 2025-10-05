@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
+import UploadDocumentDialog from "@/components/UploadDocumentDialog";
 import { useToast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -35,7 +36,7 @@ interface UserDetails {
   [key: string]: unknown;
 }
 
-function UploadDocumentDialog({ onUploadSuccess }: { onUploadSuccess?: () => void }) {
+function LegacyUploadDocumentDialog({ onUploadSuccess }: { onUploadSuccess?: () => void }) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [title, setTitle] = useState("");
@@ -622,7 +623,7 @@ export default function KnowledgeHub() {
               Explore our comprehensive knowledge base to find answers, insights, and resources.
             </p>
           </div>
-          <UploadDocumentDialog onUploadSuccess={fetchUserAndDocuments} />
+          <UploadDocumentDialog variant="button" onUploadSuccess={fetchUserAndDocuments} />
         </div>
 
         {/* Search Bar */}
@@ -702,7 +703,7 @@ export default function KnowledgeHub() {
             <p className="text-muted-foreground text-center mb-6 max-w-md">
               Get started by uploading your first document to the knowledge hub.
             </p>
-            <UploadDocumentDialog onUploadSuccess={fetchUserAndDocuments} />
+            <UploadDocumentDialog variant="button" onUploadSuccess={fetchUserAndDocuments} />
           </div>
         )}
 

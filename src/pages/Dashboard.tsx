@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LyraLogo } from "@/components/ui/lyra-logo";
 import { Bell, Search, FileText, Sparkles, Upload, MessageSquare, FolderOpen, Network, Settings as SettingsIcon, Clock, File as FileIcon } from "lucide-react";
+import UploadDocumentDialog from "@/components/UploadDocumentDialog";
 import { useNavigate } from "react-router-dom";
 import { signOut, getCurrentUser } from 'aws-amplify/auth';
 import { useToast } from "@/components/ui/use-toast";
@@ -184,7 +185,7 @@ function DashboardHome() {
           </CardContent>
         </Card>
 
-        <UploadDocumentDialog />
+        <UploadDocumentDialog variant="card" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
