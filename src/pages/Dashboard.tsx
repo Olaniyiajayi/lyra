@@ -482,11 +482,14 @@ function UploadDocumentDialog() {
         console.log('S3 upload response status:', uploadResponse.status);
         console.log('S3 upload response headers:', Object.fromEntries(uploadResponse.headers.entries()));
 
-        if (!uploadResponse.ok) {
+        // 204 No Content is the correct success response from S3
+        if (uploadResponse.status !== 204 && !uploadResponse.ok) {
           const errorText = await uploadResponse.text();
           console.error('S3 Upload Error Response:', errorText);
           throw new Error(`File upload failed: ${uploadResponse.status} - ${errorText}`);
         }
+        
+        console.log('S3 upload successful with status:', uploadResponse.status);
 
       } catch (err) {
         console.error('S3 upload error:', err);
