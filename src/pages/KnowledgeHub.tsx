@@ -24,6 +24,8 @@ interface Document {
   created_at: string;
   updated_at: string;
   object_key: string;
+  user_id?: string;
+  created_by?: string;
 }
 
 interface UserDetails {
@@ -414,6 +416,7 @@ export default function KnowledgeHub() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<UserDetails | null>(null);
+  const [usersById, setUsersById] = useState<Record<string, UserDetails>>({});
   const { toast } = useToast();
 
   const parseJwt = (token: string) => {
@@ -503,6 +506,43 @@ export default function KnowledgeHub() {
               ? docsData.items
               : [];
       setDocuments(docs);
+
+      // Fetch creator details for unique user_ids
+      const creatorIds = Array.from(
+        new Set(
+          docs
+            .map((d: any) => d.user_id || d.created_by)
+            .filter((v: any) => typeof v === 'string' && v.length > 0)
+        )
+      );
+
+      if (creatorIds.length > 0) {
+        const entries = await Promise.allSettled(
+          creatorIds.map(async (cid) => {
+            const r = await fetch(
+              `https://x7kvimqwgl.execute-api.us-east-1.amazonaws.com/dev/?user_id=${encodeURIComponent(
+                cid
+              )}`,
+              {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${idToken}` },
+              }
+            );
+            if (!r.ok) throw new Error(`user ${cid} ${r.status}`);
+            const u = (await r.json()) as UserDetails;
+            return [cid, u] as const;
+          })
+        );
+
+        const map: Record<string, UserDetails> = {};
+        for (const e of entries) {
+          if (e.status === 'fulfilled') {
+            const [cid, u] = e.value;
+            map[cid] = u;
+          }
+        }
+        setUsersById(map);
+      }
     } catch (err: any) {
       console.error("Error fetching documents:", err);
       setError(err.message || "Failed to load documents");
@@ -692,6 +732,14 @@ export default function KnowledgeHub() {
                   </div>
                   <div className="text-sm text-muted-foreground">
                     <p className="mb-1 capitalize">{doc.department}</p>
+                    <p className="mb-1 flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      {(() => {
+                        const cid = (doc.user_id || doc.created_by) as string | undefined;
+                        const u = cid ? usersById[cid] : undefined;
+                        return u?.name || cid || 'Unknown';
+                      })()}
+                    </p>
                     <p>{formatDate(doc.updated_at)}</p>
                   </div>
                 </CardContent>
