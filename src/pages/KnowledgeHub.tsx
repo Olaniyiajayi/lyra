@@ -26,6 +26,13 @@ interface Document {
   object_key: string;
 }
 
+interface UserDetails {
+  user_id?: string;
+  name?: string;
+  email?: string;
+  [key: string]: unknown;
+}
+
 function UploadDocumentDialog({ onUploadSuccess }: { onUploadSuccess?: () => void }) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -406,9 +413,26 @@ export default function KnowledgeHub() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<UserDetails | null>(null);
   const { toast } = useToast();
 
-  const fetchDocuments = async () => {
+  const parseJwt = (token: string) => {
+    try {
+      const base64Url = token.split(".")[1];
+      const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split("")
+          .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+          .join("")
+      );
+      return JSON.parse(jsonPayload);
+    } catch {
+      return {} as Record<string, unknown>;
+    }
+  };
+
+  const fetchUserAndDocuments = async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -422,22 +446,62 @@ export default function KnowledgeHub() {
         throw new Error("No ID token found");
       }
 
-      const response = await fetch('https://x7kvimqwgl.execute-api.us-east-1.amazonaws.com/dev/', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-        },
-      });
+      // Derive user_id from token claims
+      const claims = parseJwt(idToken) as Record<string, any>;
+      const userId: string =
+        claims["custom:user_id"] || claims["user_id"] || claims["sub"];
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch documents: ${response.status}`);
+      // Fetch user details
+      try {
+        const userResp = await fetch(
+          `https://x7kvimqwgl.execute-api.us-east-1.amazonaws.com/dev/?user_id=${encodeURIComponent(
+            userId
+          )}`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${idToken}`,
+            },
+          }
+        );
+        if (userResp.ok) {
+          const userData = await userResp.json();
+          setUser(userData as UserDetails);
+        } else {
+          console.warn('Failed to fetch user details', userResp.status);
+        }
+      } catch (userErr) {
+        console.warn('Error fetching user details', userErr);
       }
 
-      const data = await response.json();
-      console.log('Documents fetched:', data);
-      
-      // Handle the response - it might be an array or have a documents property
-      const docs = Array.isArray(data) ? data : (data.documents || []);
+      // Fetch documents list
+      const docsResp = await fetch(
+        'https://ddbvzu5y2m.execute-api.us-east-1.amazonaws.com/dev/list/document',
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${idToken}`,
+          },
+        }
+      );
+
+      if (!docsResp.ok) {
+        throw new Error(`Failed to fetch documents: ${docsResp.status}`);
+      }
+
+      const docsData = await docsResp.json();
+      console.log('Documents fetched:', docsData);
+
+      // Handle possible wrapped response shapes
+      const docs = Array.isArray(docsData)
+        ? docsData
+        : Array.isArray(docsData?.documents)
+          ? docsData.documents
+          : Array.isArray(docsData?.body)
+            ? docsData.body
+            : Array.isArray(docsData?.items)
+              ? docsData.items
+              : [];
       setDocuments(docs);
     } catch (err: any) {
       console.error("Error fetching documents:", err);
@@ -453,7 +517,7 @@ export default function KnowledgeHub() {
   };
 
   useEffect(() => {
-    fetchDocuments();
+    fetchUserAndDocuments();
   }, []);
 
   const formatDate = (dateString: string) => {
@@ -518,7 +582,7 @@ export default function KnowledgeHub() {
               Explore our comprehensive knowledge base to find answers, insights, and resources.
             </p>
           </div>
-          <UploadDocumentDialog onUploadSuccess={fetchDocuments} />
+          <UploadDocumentDialog onUploadSuccess={fetchUserAndDocuments} />
         </div>
 
         {/* Search Bar */}
@@ -598,7 +662,7 @@ export default function KnowledgeHub() {
             <p className="text-muted-foreground text-center mb-6 max-w-md">
               Get started by uploading your first document to the knowledge hub.
             </p>
-            <UploadDocumentDialog onUploadSuccess={fetchDocuments} />
+            <UploadDocumentDialog onUploadSuccess={fetchUserAndDocuments} />
           </div>
         )}
 
