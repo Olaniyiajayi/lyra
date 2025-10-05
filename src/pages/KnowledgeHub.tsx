@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { LyraLogo } from "@/components/ui/lyra-logo";
-import { Search, HelpCircle, User, FileText, Megaphone, ShieldCheck, BookOpen, Upload } from "lucide-react";
+import { Search, HelpCircle, User, FileText, Upload, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -12,44 +12,21 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
 
-// Mock document data
-const documents = [
-  {
-    id: 1,
-    title: "Annual Financial Report 2023",
-    tags: [{ text: "Finance", color: "bg-blue-100 text-blue-800" }, { text: "Report", color: "bg-gray-100 text-gray-800" }],
-    owner: "Eleanor Vance",
-    timestamp: "2 days ago",
-    icon: FileText,
-  },
-  {
-    id: 2,
-    title: "Q4 Marketing Campaign Brief",
-    tags: [{ text: "Marketing", color: "bg-purple-100 text-purple-800" }, { text: "Strategy", color: "bg-yellow-100 text-yellow-800" }],
-    owner: "David Chen",
-    timestamp: "5 days ago",
-    icon: Megaphone,
-  },
-  {
-    id: 3,
-    title: "Updated HR Policies",
-    tags: [{ text: "HR", color: "bg-red-100 text-red-800" }, { text: "Official", color: "bg-gray-100 text-gray-800" }],
-    owner: "Sarah Miller",
-    timestamp: "1 week ago",
-    icon: ShieldCheck,
-  },
-  {
-    id: 4,
-    title: "Onboarding Manual v3",
-    tags: [{ text: "Training", color: "bg-blue-100 text-blue-800" }, { text: "HR", color: "bg-red-100 text-red-800" }],
-    owner: "Michael Brown",
-    timestamp: "2 weeks ago",
-    icon: BookOpen,
-  },
-];
+interface Document {
+  document_id: string;
+  title: string;
+  tags: string[];
+  department: string;
+  visibility: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  object_key: string;
+}
 
-function UploadDocumentDialog() {
+function UploadDocumentDialog({ onUploadSuccess }: { onUploadSuccess?: () => void }) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [title, setTitle] = useState("");
@@ -287,6 +264,11 @@ function UploadDocumentDialog() {
       setVisibility("team-only");
       setSelectedFile(null);
       setOpen(false);
+      
+      // Trigger refresh if callback provided
+      if (onUploadSuccess) {
+        onUploadSuccess();
+      }
 
     } catch (error: any) {
       console.error("Upload error:", error);
@@ -421,6 +403,71 @@ function UploadDocumentDialog() {
 export default function KnowledgeHub() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const fetchDocuments = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Get the idToken from AWS Amplify
+      const { fetchAuthSession } = await import('aws-amplify/auth');
+      const session = await fetchAuthSession();
+      const idToken = session.tokens?.idToken?.toString();
+
+      if (!idToken) {
+        throw new Error("No ID token found");
+      }
+
+      const response = await fetch('https://x7kvimqwgl.execute-api.us-east-1.amazonaws.com/dev/', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch documents: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Documents fetched:', data);
+      
+      // Handle the response - it might be an array or have a documents property
+      const docs = Array.isArray(data) ? data : (data.documents || []);
+      setDocuments(docs);
+    } catch (err: any) {
+      console.error("Error fetching documents:", err);
+      setError(err.message || "Failed to load documents");
+      toast({
+        title: "Error",
+        description: err.message || "Failed to load documents",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDocuments();
+  }, []);
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMs = now.getTime() - date.getTime();
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+
+    if (diffInDays === 0) return "Today";
+    if (diffInDays === 1) return "Yesterday";
+    if (diffInDays < 7) return `${diffInDays} days ago`;
+    if (diffInDays < 30) return `${Math.floor(diffInDays / 7)} weeks ago`;
+    return date.toLocaleDateString();
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -471,7 +518,7 @@ export default function KnowledgeHub() {
               Explore our comprehensive knowledge base to find answers, insights, and resources.
             </p>
           </div>
-          <UploadDocumentDialog />
+          <UploadDocumentDialog onUploadSuccess={fetchDocuments} />
         </div>
 
         {/* Search Bar */}
@@ -497,100 +544,112 @@ export default function KnowledgeHub() {
             <SelectContent>
               <SelectItem value="date">Date Modified</SelectItem>
               <SelectItem value="title">Title</SelectItem>
-              <SelectItem value="owner">Owner</SelectItem>
+              <SelectItem value="department">Department</SelectItem>
             </SelectContent>
           </Select>
 
-          <Select>
+          <Select defaultValue="all">
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Owner" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Owners</SelectItem>
-              <SelectItem value="me">My Documents</SelectItem>
+              <SelectItem value="me">Me</SelectItem>
             </SelectContent>
           </Select>
 
-          <Select>
+          <Select defaultValue="all">
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Tags" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Tags</SelectItem>
-              <SelectItem value="finance">Finance</SelectItem>
-              <SelectItem value="marketing">Marketing</SelectItem>
-              <SelectItem value="hr">HR</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
-        {/* Documents Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {documents.map((doc) => {
-            const Icon = doc.icon;
-            return (
-              <Card key={doc.id} className="hover:shadow-lg transition-shadow cursor-pointer">
+        {/* Loading State */}
+        {isLoading && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((i) => (
+              <Card key={i}>
                 <CardContent className="p-6">
-                  <div className="flex flex-col space-y-4">
-                    {/* Icon */}
-                    <div className="w-full h-32 bg-muted rounded-lg flex items-center justify-center">
-                      <Icon className="h-12 w-12 text-muted-foreground" />
-                    </div>
+                  <Skeleton className="h-10 w-10 mb-4" />
+                  <Skeleton className="h-6 w-3/4 mb-3" />
+                  <div className="flex gap-2 mb-4">
+                    <Skeleton className="h-6 w-16" />
+                    <Skeleton className="h-6 w-20" />
+                  </div>
+                  <Skeleton className="h-4 w-1/2 mb-2" />
+                  <Skeleton className="h-4 w-1/3" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
 
-                    {/* Title */}
-                    <h3 className="font-semibold text-base line-clamp-2 min-h-[3rem]">
-                      {doc.title}
-                    </h3>
+        {/* Empty State */}
+        {!isLoading && documents.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="p-4 rounded-full bg-muted mb-4">
+              <FileText className="h-12 w-12 text-muted-foreground" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">No documents yet</h3>
+            <p className="text-muted-foreground text-center mb-6 max-w-md">
+              Get started by uploading your first document to the knowledge hub.
+            </p>
+            <UploadDocumentDialog onUploadSuccess={fetchDocuments} />
+          </div>
+        )}
 
-                    {/* Tags */}
-                    <div className="flex flex-wrap gap-2">
-                      {doc.tags.map((tag, idx) => (
-                        <Badge
-                          key={idx}
-                          variant="secondary"
-                          className={tag.color}
-                        >
-                          {tag.text}
-                        </Badge>
-                      ))}
+        {/* Document Grid */}
+        {!isLoading && documents.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {documents.map((doc) => (
+              <Card key={doc.document_id} className="hover:shadow-lg transition-shadow cursor-pointer">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <FileText className="h-6 w-6 text-primary" />
                     </div>
-
-                    {/* Meta Info */}
-                    <div className="space-y-1 text-sm text-muted-foreground pt-2 border-t">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4" />
-                        <span>{doc.owner}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <circle cx="12" cy="12" r="10" strokeWidth="2" />
-                          <path strokeWidth="2" d="M12 6v6l4 2" />
-                        </svg>
-                        <span>{doc.timestamp}</span>
-                      </div>
-                    </div>
+                    {doc.status === "UPLOAD_SUCCEEDED" && (
+                      <Badge variant="secondary" className="bg-green-100 text-green-800">
+                        Ready
+                      </Badge>
+                    )}
+                  </div>
+                  <h3 className="font-semibold mb-3 text-base line-clamp-2">{doc.title}</h3>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {doc.tags.map((tag, idx) => (
+                      <Badge key={idx} variant="secondary">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    <p className="mb-1 capitalize">{doc.department}</p>
+                    <p>{formatDate(doc.updated_at)}</p>
                   </div>
                 </CardContent>
               </Card>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )}
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-border mt-16 py-8">
-        <div className="max-w-[1400px] mx-auto px-6">
-          <div className="flex items-center justify-center gap-8 text-sm text-muted-foreground">
-            <a href="#" className="hover:text-foreground transition-colors">
-              Terms of Service
-            </a>
-            <a href="#" className="hover:text-foreground transition-colors">
-              Privacy Policy
-            </a>
+      <footer className="border-t border-border bg-background mt-12">
+        <div className="max-w-[1400px] mx-auto px-6 py-6">
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <div className="flex items-center space-x-6">
+              <span>© 2024 Lyra</span>
+              <a href="#" className="hover:text-foreground">Terms</a>
+              <a href="#" className="hover:text-foreground">Privacy</a>
+            </div>
+            <div>
+              Powered by AI
+            </div>
           </div>
-          <p className="text-center text-sm text-muted-foreground mt-4">
-            © 2024 Lyra. All rights reserved.
-          </p>
         </div>
       </footer>
     </div>
