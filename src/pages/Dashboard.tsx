@@ -84,9 +84,9 @@ export default function Dashboard() {
             Document Workspa...
           </Button>
           <Button
-            variant={currentView === "knowledge" ? "secondary" : "ghost"}
+            variant="ghost"
             className="w-full justify-start"
-            onClick={() => setCurrentView("knowledge")}
+            onClick={() => navigate("/knowledge-hub")}
           >
             <Network className="h-4 w-4 mr-3" />
             Knowledge Hub
