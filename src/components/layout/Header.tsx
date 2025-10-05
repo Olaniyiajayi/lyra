@@ -11,6 +11,7 @@ export function Header() {
   const navItems = [
     { name: "Product", path: "/product" },
     { name: "Solutions", path: "/solutions" },
+    { name: "Knowledge Hub", path: "/knowledge-hub" },
     { name: "Resources", path: "/resources" },
     { name: "Pricing", path: "/pricing" },
   ];
